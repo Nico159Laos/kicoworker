@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import dev.coworker.llm.AgentAction
 import dev.coworker.llm.LlmEngine
 import dev.coworker.llm.MockLlmEngine
+import dev.coworker.llm.OllamaHttpEngine
 import dev.coworker.tools.ComposeMessageTool
 import dev.coworker.tools.DialerTool
 import dev.coworker.tools.NavigationTool
@@ -38,7 +39,8 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
         )
     )
 
-    private val llm: LlmEngine = MockLlmEngine()
+    private val llm: LlmEngine = OllamaHttpEngine()
+    // private val llm: LlmEngine = MockLlmEngine()  // fuer Offline-Tests
 
     fun send(input: String) {
         if (input.isBlank()) return
