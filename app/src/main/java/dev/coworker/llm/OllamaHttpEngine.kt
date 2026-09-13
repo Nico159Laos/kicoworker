@@ -10,12 +10,18 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.IOException
+import java.util.concurrent.TimeUnit
 
 class OllamaHttpEngine(
     private val serverUrl: String = "http://192.168.1.x:1880"  // Node-RED
 ) : LlmEngine {
 
-    private val client = OkHttpClient()
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(5, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(15, TimeUnit.SECONDS)
+        .build()
     private val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
 
     @Serializable
@@ -70,34 +76,56 @@ class OllamaHttpEngine(
             messages = listOf(Message("user", userInput))
         )
 
-        val jsonBody = kotlinx.serialization.json.Json.encodeToString(
-            ChatRequest.serializer(),
-            request
-        )
+        val jsonBody = try {
+            kotlinx.serialization.json.Json.encodeToString(
+                ChatRequest.serializer(),
+                request
+            )
+        } catch (e: Exception) {
+            return@withContext AgentAction.Say("Interner Fehler beim Erstellen der Anfrage: ${e.message}")
+        }
 
         val httpRequest = Request.Builder()
             .url("$serverUrl/chat")  // Node-RED endpoint
             .post(jsonBody.toRequestBody("application/json".toMediaType()))
             .build()
 
-        client.newCall(httpRequest).execute().use { response ->
-            if (!response.isSuccessful) {
-                return@withContext AgentAction.Say("Server-Fehler: ${response.code}")
+        try {
+            client.newCall(httpRequest).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext AgentAction.Say("Server-Fehler: ${response.code}")
+                }
+
+                val body = response.body?.string()
+                if (body.isNullOrBlank()) {
+                    return@withContext AgentAction.Say("Server hat keine Antwort geschickt")
+                }
+
+                val chatResponse = try {
+                    json.decodeFromString(ChatResponse.serializer(), body)
+                } catch (e: Exception) {
+                    return@withContext AgentAction.Say("Server-Antwort hat unerwartetes Format: ${e.message}")
+                }
+
+                val toolCalls = chatResponse.message.tool_calls
+                if (!toolCalls.isNullOrEmpty()) {
+                    val call = toolCalls.first()
+                    return@withContext AgentAction.ToolCall(
+                        tool = call.function.name,
+                        params = call.function.arguments
+                    )
+                }
+
+                AgentAction.Say(chatResponse.message.content)
             }
-
-            val body = response.body?.string() ?: return@withContext AgentAction.Say("Keine Antwort")
-            val chatResponse = json.decodeFromString(ChatResponse.serializer(), body)
-
-            val toolCalls = chatResponse.message.tool_calls
-            if (!toolCalls.isNullOrEmpty()) {
-                val call = toolCalls.first()
-                return@withContext AgentAction.ToolCall(
-                    tool = call.function.name,
-                    params = call.function.arguments
-                )
-            }
-
-            AgentAction.Say(chatResponse.message.content)
+        } catch (e: java.net.ConnectException) {
+            AgentAction.Say("Server nicht erreichbar unter $serverUrl — läuft er und bist du im selben Netzwerk?")
+        } catch (e: java.net.SocketTimeoutException) {
+            AgentAction.Say("Server antwortet nicht rechtzeitig (Timeout). Versuch's nochmal.")
+        } catch (e: IOException) {
+            AgentAction.Say("Verbindung zum Server fehlgeschlagen: ${e.message}")
+        } catch (e: Exception) {
+            AgentAction.Say("Unerwarteter Fehler beim Server-Aufruf: ${e.message}")
         }
     }
 }
