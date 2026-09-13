@@ -214,16 +214,16 @@ class OnnxLlmEngine(private val context: Context) : LlmEngine {
     private fun generate(inputIds: IntArray): IntArray {
         val maxTokens = 50
         val outputIds = inputIds.toMutableList()
-        
-        repeat(maxTokens) { i ->
+
+        for (i in 0 until maxTokens) {
             if (outputIds.size > 128) break
-            
+
             val nextToken = (outputIds.sum() % 32000)
             outputIds.add(nextToken)
-            
+
             if (nextToken == 2) break
         }
-        
+
         return outputIds.toIntArray()
     }
 
