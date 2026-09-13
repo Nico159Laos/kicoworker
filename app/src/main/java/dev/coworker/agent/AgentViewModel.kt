@@ -66,27 +66,34 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
     fun send(input: String) {
         if (input.isBlank()) return
         messages.add(ChatMessage(true, input))
+        
+        val vm = this
         viewModelScope.launch {
-            val decision: RoutingDecision = hybridRouter.route(input)
-            
-            messages.add(ChatMessage(false, "[Router] ${decision.backend.name}: ${decision.reason}"))
+            try {
+                val decision: RoutingDecision = hybridRouter.route(input)
+                
+                messages.add(ChatMessage(false, "[Router] ${decision.backend.name}: ${decision.reason}"))
 
-            val llm: LlmEngine = when (decision.backend) {
-                Backend.LOCAL -> localLlm
-                Backend.HOME_SERVER -> decision.engine ?: OllamaHttpEngine()
-            }
-
-            when (val action = llm.decide(input)) {
-                is AgentAction.Say -> messages.add(ChatMessage(false, action.text))
-                is AgentAction.ToolCall -> {
-                    messages.add(ChatMessage(false, "[Tool] " + action.tool + " " + action.params.toString()))
-                    val text = when (val r = registry.dispatch(action.tool, action.params)) {
-                        is ToolResult.Success -> r.message
-                        is ToolResult.NeedsUserAction -> r.message
-                        is ToolResult.Error -> "Fehler: " + r.message
-                    }
-                    messages.add(ChatMessage(false, text))
+                val llm: LlmEngine = when (decision.backend) {
+                    Backend.LOCAL -> localLlm
+                    Backend.HOME_SERVER -> decision.engine ?: OllamaHttpEngine()
                 }
+
+                val action = llm.decide(input)
+                when (action) {
+                    is AgentAction.Say -> messages.add(ChatMessage(false, action.text))
+                    is AgentAction.ToolCall -> {
+                        messages.add(ChatMessage(false, "[Tool] " + action.tool + " " + action.params.toString()))
+                        val text = when (val r = registry.dispatch(action.tool, action.params)) {
+                            is ToolResult.Success -> r.message
+                            is ToolResult.NeedsUserAction -> r.message
+                            is ToolResult.Error -> "Fehler: " + r.message
+                        }
+                        messages.add(ChatMessage(false, text))
+                    }
+                }
+            } catch (e: Exception) {
+                messages.add(ChatMessage(false, "Fehler: ${e.message}"))
             }
         }
     }

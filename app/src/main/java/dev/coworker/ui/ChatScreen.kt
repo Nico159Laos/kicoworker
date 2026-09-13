@@ -55,7 +55,7 @@ import kotlinx.coroutines.launch
 fun ChatScreen(vm: AgentViewModel) {
     var input by remember { mutableStateOf("") }
     var showSettings by remember { mutableStateOf(false) }
-    var serverUrl by remember { mutableStateOf("http://192.168.1.x:1880") }
+    var serverUrl by remember { mutableStateOf("http://192.168.178.81:1880") }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
