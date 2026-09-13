@@ -12,7 +12,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 
 class OllamaHttpEngine(
-    private val baseUrl: String = "http://localhost:11434"
+    private val serverUrl: String = "http://192.168.1.x:1880"  // Node-RED
 ) : LlmEngine {
 
     private val client = OkHttpClient()
@@ -76,7 +76,7 @@ class OllamaHttpEngine(
         )
 
         val httpRequest = Request.Builder()
-            .url("$baseUrl/api/chat")
+            .url("$serverUrl/chat")  // Node-RED endpoint
             .post(jsonBody.toRequestBody("application/json".toMediaType()))
             .build()
 
