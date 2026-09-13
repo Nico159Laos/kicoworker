@@ -14,7 +14,7 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 class OllamaHttpEngine(
-    private val serverUrl: String = "http://192.168.1.x:1880"  // Node-RED
+    private val serverUrl: String = "http://192.168.178.81:1880"  // Node-RED
 ) : LlmEngine {
 
     private val client = OkHttpClient.Builder()

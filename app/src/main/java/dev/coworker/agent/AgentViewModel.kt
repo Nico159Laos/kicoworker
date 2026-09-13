@@ -49,7 +49,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
     private val hybridRouter = HybridRouter(
         context = app,
         serverAvailable = { isServerAvailable(app) },
-        serverUrl = "http://192.168.1.x:1880"
+        serverUrl = "http://192.168.178.81:1880"
     )
 
     private val localLlm: LlmEngine = OnnxLlmEngine(app)

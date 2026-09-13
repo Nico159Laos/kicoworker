@@ -14,7 +14,7 @@ data class RoutingDecision(
 class HybridRouter(
     private val context: android.content.Context,
     private val serverAvailable: () -> Boolean = { false },
-    private val serverUrl: String = "http://192.168.1.x:1880"
+    private val serverUrl: String = "http://192.168.178.81:1880"
 ) {
     private var localEngine: OnnxLlmEngine? = null
     private var serverEngine: dev.coworker.llm.OllamaHttpEngine? = null
