@@ -1,4 +1,4 @@
-package com.kicoworker.llm // TODO: an euer tatsächliches Package anpassen
+package dev.coworker.llm
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers

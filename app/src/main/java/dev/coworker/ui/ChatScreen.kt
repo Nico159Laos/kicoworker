@@ -42,9 +42,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import dev.coworker.agent.AgentViewModel
-import dev.coworker.llm.OnnxLlmEngine
+import dev.coworker.llm.DeviceCapabilityChecker
+import dev.coworker.llm.DownloadProgress
+import dev.coworker.llm.ModelDownloadManager
+import dev.coworker.llm.ModelTier
 import kotlinx.coroutines.launch
 
 @Composable
@@ -126,7 +130,6 @@ fun SettingsDialog(
     var selectedTab by remember { mutableIntStateOf(0) }
     var downloadProgress by remember { mutableStateOf(-1) }
     var isDownloading by remember { mutableStateOf(false) }
-    var modelStatus by remember { mutableStateOf("Lädt...") }
     val scope = rememberCoroutineScope()
 
     AlertDialog(
@@ -165,25 +168,67 @@ fun SettingsDialog(
                         )
                     }
                     1 -> {
+                        val context = LocalContext.current
+                        val manager = remember { ModelDownloadManager(context) }
+                        val capability = remember { DeviceCapabilityChecker.check(context) }
+                        var downloadedTiers by remember {
+                            mutableStateOf(ModelTier.entries.filter { manager.isDownloaded(it) }.toSet())
+                        }
+                        var errorMessage by remember { mutableStateOf<String?>(null) }
+
                         Text("Lokales KI-Modell:", style = androidx.compose.material3.MaterialTheme.typography.titleSmall)
                         Text(
                             "Modelle werden heruntergeladen und lokal gespeichert",
                             style = androidx.compose.material3.MaterialTheme.typography.bodySmall
                         )
+                        if (!capability.isSupportedAbi) {
+                            Text(
+                                "Achtung: Dieses Gerät wird noch nicht unterstützt (nur arm64-v8a, v0.2).",
+                                style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                                color = androidx.compose.material3.MaterialTheme.colorScheme.error
+                            )
+                        }
+                        errorMessage?.let {
+                            Text(
+                                it,
+                                style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                                color = androidx.compose.material3.MaterialTheme.colorScheme.error
+                            )
+                        }
 
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        OnnxLlmEngine.AVAILABLE_MODELS.forEach { model ->
+                        ModelTier.entries.forEach { tier ->
                             ModelItem(
-                                model = model,
+                                tier = tier,
+                                isDownloaded = tier in downloadedTiers,
                                 isDownloading = isDownloading,
                                 downloadProgress = downloadProgress,
                                 onDownload = {
                                     scope.launch {
+                                        errorMessage = null
                                         isDownloading = true
                                         downloadProgress = 0
-                                        onDismiss()
+                                        manager.downloadModel(tier).collect { progress ->
+                                            when (progress) {
+                                                is DownloadProgress.InProgress -> {
+                                                    downloadProgress = (progress.fraction * 100).toInt()
+                                                }
+                                                is DownloadProgress.Done -> {
+                                                    isDownloading = false
+                                                    downloadedTiers = downloadedTiers + tier
+                                                }
+                                                is DownloadProgress.Failed -> {
+                                                    isDownloading = false
+                                                    errorMessage = "Download fehlgeschlagen: ${progress.error.message}"
+                                                }
+                                            }
+                                        }
                                     }
+                                },
+                                onDelete = {
+                                    manager.deleteModel(tier)
+                                    downloadedTiers = downloadedTiers - tier
                                 }
                             )
                             HorizontalDivider()
@@ -203,10 +248,12 @@ fun SettingsDialog(
 
 @Composable
 fun ModelItem(
-    model: OnnxLlmEngine.ModelInfo,
+    tier: ModelTier,
+    isDownloaded: Boolean,
     isDownloading: Boolean,
     downloadProgress: Int,
-    onDownload: () -> Unit
+    onDownload: () -> Unit,
+    onDelete: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -216,9 +263,9 @@ fun ModelItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(model.name, style = androidx.compose.material3.MaterialTheme.typography.titleSmall)
+            Text(tier.label, style = androidx.compose.material3.MaterialTheme.typography.titleSmall)
             Text(
-                "${model.description} • ${model.sizeMb}MB",
+                "${tier.downloadSizeMb} MB" + if (isDownloaded) " • heruntergeladen" else "",
                 style = androidx.compose.material3.MaterialTheme.typography.bodySmall
             )
             if (isDownloading && downloadProgress >= 0) {
@@ -230,10 +277,12 @@ fun ModelItem(
             }
         }
         Spacer(modifier = Modifier.width(8.dp))
-        if (isDownloading) {
-            CircularProgressIndicator(modifier = Modifier.width(24.dp).height(24.dp))
-        } else {
-            IconButton(onClick = onDownload) {
+        when {
+            isDownloading -> CircularProgressIndicator(modifier = Modifier.width(24.dp).height(24.dp))
+            isDownloaded -> IconButton(onClick = onDelete) {
+                Icon(Icons.Default.Delete, contentDescription = "Löschen")
+            }
+            else -> IconButton(onClick = onDownload) {
                 Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Herunterladen")
             }
         }
