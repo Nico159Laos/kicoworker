@@ -14,7 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
@@ -234,7 +234,7 @@ fun ModelItem(
             CircularProgressIndicator(modifier = Modifier.width(24.dp).height(24.dp))
         } else {
             IconButton(onClick = onDownload) {
-                Icon(Icons.Default.ArrowDownward, contentDescription = "Herunterladen")
+                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Herunterladen")
             }
         }
     }
